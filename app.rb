@@ -8,11 +8,11 @@ get '/' do |params|
   {data: [params, req]}.to_json
 end
 
-get '/:id' do |params|
-  {data: [params, req]}.inspect
-end
-
 get '/red' do |params|
   p 'redirecting...'
   res.redirect '/'
+end
+
+get '/:id' do |params|
+  {data: [params, req]}.inspect
 end

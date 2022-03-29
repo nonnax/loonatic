@@ -1,19 +1,19 @@
 #!/usr/bin/env ruby
 # Id$ nonnax 2022-03-29 13:11:21 +0800
 # Loonatic
-# small rack-aware framework
+# small rack framework
 module Loonatic
   @headers_default = {'Content-type'=>'text/html; charset=UTF-8'}
   @status = 200
   @routes = { 'GET' => [], 'POST' => [] }
   @options = {}
 
-  def self.route(method, path_info, &block)    
+  def self.route(method, path_info, **opts, &block)    
     compiled_path, extra_params=compile_path_params(path_info)
-    p r = {path_info:, compiled_path:, extra_params:, block:}
-    
+    r = {path_info:, compiled_path:, extra_params:, opts: opts, block:}
     @routes[method] << r 
   end
+  
   def self.headers(h) @res.headers.merge!(h) end
   def self.content_type(type) self.headers({'Content-type'=> type }) end
   def self.status(status) @res.status=status  end
@@ -38,8 +38,7 @@ module Loonatic
     [404, @headers_default, ['Not Found']]
   end
   
-  private 
-  
+  private  
   def self.compile_path_params(path)
     extra_params = []
     compiled_path = path.gsub(/:\w+/) do |match|
@@ -48,12 +47,11 @@ module Loonatic
     end
     [/^#{compiled_path}$/, extra_params]
   end
-
 end
 
 module Kernel
-  def get(path, **opts, &block)  ::Loonatic.route 'GET', path, &block  end
-  def post(path, **opts, &block) ::Loonatic.route 'POST', path, &block end
+  def get(path,  **opts, &block) ::Loonatic.route 'GET',  path, **opts, &block end
+  def post(path, **opts, &block) ::Loonatic.route 'POST', path, **opts, &block end
   def headers(h)      ::Loonatic.headers(h) end
   def status(status)  ::Loonatic.status( status) end
   def set(key, value) ::Loonatic.set( key, value) end
