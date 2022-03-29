@@ -2,10 +2,11 @@
 # Id$ nonnax 2022-03-29 12:19:05 +0800
 require_relative 'lib/loonatic'
 require 'json'
-
-get '/' do |params|
-  content_type 'application/json'
-  {data: [params, req]}.to_json
+require_relative 'lib/cache_conf'
+    
+get '/', 'Content-type'=>'application/json' do |params|
+  # content_type 'application/json'
+  {data: [params, req, env.inspect]}.to_json
 end
 
 get '/red' do |params|
@@ -14,5 +15,13 @@ get '/red' do |params|
 end
 
 get '/:id' do |params|
-  {data: [params, req]}.inspect
+  $updated_at ||= Time.now
+  # last_modified $updated_at ||= Time.now  
+  methods=self.methods.grep /last/
+  {data: [params, methods]}.inspect
+end
+
+put '/:id' do |params|
+  $updated_at = nil
+  res.redirect '/'
 end
