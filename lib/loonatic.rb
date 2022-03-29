@@ -37,13 +37,9 @@ module Loonatic
     return res.finish if @body
     [404, @headers_default, ['Not Found']]
   end
-
-  def self._extra_params_of(path)
-    _path, extra_params=path
-    _path.match(req.path_info)
-    extra_params.zip(Regexp.last_match.captures).to_h rescue {}
-  end
-
+  
+  private 
+  
   def self.compile_path_params(path)
     extra_params = []
     compiled_path = path.gsub(/:\w+/) do |match|
