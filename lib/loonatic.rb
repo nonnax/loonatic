@@ -17,6 +17,7 @@ module Loonatic
       self.write s
     end
   end
+
   @routes = { 'GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => [] }
   @options = {} # server opts
 
@@ -25,29 +26,18 @@ module Loonatic
   end
 
   def self.route(method, path_info, **opts, &block)    
-    compiled_path, extra_params=compile_path_params(path_info)
+    compiled_path, extra_params=U(path_info).compile_path_params
     r = {path_info:, compiled_path:, extra_params:, opts: opts, block:}
     @routes[method] << r 
   end
 
   def self.set(key, value) @options[key]= value  end
-
-  
+ 
   def self.new
     Rack::Builder.new do 
       use Rack::Static, urls: %w[/css /js /img /media], root: 'public'
       run App.new
     end
-  end
-  
-  private  
-  def self.compile_path_params(path)
-    extra_params = []
-    compiled_path = path.gsub(/:\w+/) do |match|
-      extra_params << match.gsub(':', '').to_sym
-      '([^/?#]+)'
-    end
-    [/^#{compiled_path}\/?$/, extra_params]
   end
   
   class App
@@ -56,23 +46,21 @@ module Loonatic
     attr :req, :res, :env
     
     def status(status) res.status=status  end
-    def headers(h) res.headers.merge!(H(h).keys_to_str) end
+    def headers(h) res.headers.merge!(U(h).keys_to_str) end
     def content_type(type) headers({Rack::CONTENT_TYPE =>type}) end
 
     def eval_route(env)
-      @req=Rack::Request.new(env)
-      @res=Loonatic::Response.new
-      @env=env
+      @req,@res,@env=Rack::Request.new(env),Loonatic::Response.new,env
       
-      route=::Loonatic.routes[req.request_method].detect {|r| r[:compiled_path].match(U.clean_path_info(req.path_info))}
+      route=::Loonatic.routes[req.request_method].detect {|r| r[:compiled_path].match(U(req.path_info).clean_path_info)}
       if route
-        params=route[:extra_params].zip(Regexp.last_match.captures).to_h rescue {}
-        headers( route[:opts] )
-        body=instance_exec(req.params.merge(params), &route[:block] ) rescue nil # bypass favicon.ico, etc errors :-)
-        # res.write body
+        params = U(route[:extra_params]).zip_captures
+        headers(route[:opts])
+        params = U(req.params.merge(params)).symbolize_keys 
+        instance_exec(params, &route[:block] ) rescue nil # bypass favicon.ico, etc errors :-)
       end
     end
-    
+        
     def call(env)
       eval_route(env)    
       return res.finish unless res.body.empty?
