@@ -3,45 +3,41 @@
 # Loonatic
 # small rack framework
 require_relative 'http_utils'
-# keys_to_sym, keys_to_str
+require 'json'
 
 module Loonatic
-  @headers_default = {'Content-Type'=>'text/html; charset=UTF-8'}
-  @status = 200
+  class Response < Rack::Response
+    def json(**h)
+      self.headers[Rack::CONTENT_TYPE]='application/json'
+      h.to_json
+      self.write h.to_json
+    end
+    def html(s)
+      self.headers[Rack::CONTENT_TYPE]='text/html; charset=utf-8'
+      self.write s
+    end
+  end
   @routes = { 'GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => [] }
-  @options = {}
+  @options = {} # server opts
+
+  class << self
+    attr :routes
+  end
 
   def self.route(method, path_info, **opts, &block)    
     compiled_path, extra_params=compile_path_params(path_info)
     r = {path_info:, compiled_path:, extra_params:, opts: opts, block:}
     @routes[method] << r 
   end
-  
-  def self.headers(h) @res.headers.merge!(h.keys_to_str) end
-  def self.content_type(type) self.headers({'Content-Type'=> type }) end
-  def self.status(status) @res.status=status  end
+
   def self.set(key, value) @options[key]= value  end
-  def self.req() @req end
-  def self.res() @res end
-  def self.env() @env end
+
   
-  def self.eval_route(env)
-    @req=Rack::Request.new(env)
-    @res=Rack::Response.new
-    
-    route=@routes[req.request_method].detect {|r| r[:compiled_path].match(req.path_info)}
-    if route
-      params=route[:extra_params].zip(Regexp.last_match.captures).to_h rescue {}
-      headers( route[:opts] )
-      @body=instance_exec(req.params.merge(params), &route[:block] ) rescue nil # bypass favicon.ico, etc errors :-)
-      res.write @body
+  def self.new
+    Rack::Builder.new do 
+      use Rack::Static, urls: %w[/css /js /img /media], root: 'public'
+      run App.new
     end
-  end
-  
-  def self.call(env)
-    self.eval_route(env)    
-    return res.finish if @body
-    [404, @headers_default, ['Not Found']]
   end
   
   private  
@@ -53,13 +49,44 @@ module Loonatic
     end
     [/^#{compiled_path}\/?$/, extra_params]
   end
+  
+  class App
+    DEFAULT_HEADER = {'Content-Type'=>'text/html; charset=UTF-8'}
+    @status = 200
+    attr :req, :res, :env
+    
+    def status(status) res.status=status  end
+    def headers(h) res.headers.merge!(H(h).keys_to_str) end
+    def content_type(type) headers({Rack::CONTENT_TYPE =>type}) end
+
+    def eval_route(env)
+      @req=Rack::Request.new(env)
+      @res=Loonatic::Response.new
+      @env=env
+      
+      route=::Loonatic.routes[req.request_method].detect {|r| r[:compiled_path].match(U.clean_path_info(req.path_info))}
+      if route
+        params=route[:extra_params].zip(Regexp.last_match.captures).to_h rescue {}
+        headers( route[:opts] )
+        body=instance_exec(req.params.merge(params), &route[:block] ) rescue nil # bypass favicon.ico, etc errors :-)
+        # res.write body
+      end
+    end
+    
+    def call(env)
+      eval_route(env)    
+      return res.finish unless res.body.empty?
+      [404, DEFAULT_HEADER, ['Not Found']]
+    end
+    
+  end
 end
 
 module Kernel
-  def get(path,  **opts, &block) ::Loonatic.route 'GET',  path, **opts, &block end
-  def post(path, **opts, &block) ::Loonatic.route 'POST', path, **opts, &block end
-  def put(path,  **opts, &block) ::Loonatic.route 'PUT', path, **opts, &block end
-  def delete(path,  **opts, &block) ::Loonatic.route 'DELETE', path, **opts, &block end
+  %w(GET POST PUT DELETE).map do |m|
+    define_method(m.downcase){ |path,  **opts, &block| ::Loonatic.route m,  path, **opts, &block }
+  end
+  
   def headers(h)      ::Loonatic.headers(h) end
   def status(status)  ::Loonatic.status( status) end
   def set(key, value) ::Loonatic.set( key, value) end

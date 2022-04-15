@@ -3,15 +3,15 @@
 require_relative 'app'
 
 # 
-use CacheConf, {
-  %r{/} => {
-     :cache_control => "max-age=86400", :expires => 86400
-    }
-}
+# use CacheConf, {
+  # %r{/} => {
+     # :cache_control => "max-age=86400", :expires => 86400
+    # }
+# }
 
 # use StupidCache, :cache => MemCache.new(%w(10.0.0.1 10.0.0.2))
 
-use Rack::Static, :urls => ["/static"]
+
 # require 'rack/cache'
 # use Rack::Cache,
   # metastore:    'file:/var/cache/rack/meta',
@@ -23,4 +23,4 @@ use Rack::Static, :urls => ["/static"]
   # entitystore: 'heap:/',
   # verbose: true
 
-run Loonatic
+run Loonatic.new
